@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Community Services Resources</title>
+
+  <style>
+    #map {
+      height: 600px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    #legend {
+      background: white;
+      padding: 10px;
+      margin: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 9999;
+    }
+
+    #legend img {
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="legend">
+    <h4>Legend</h4>
+    <div><img src="https://i.imgur.com/i8IzUNM.png" alt="Health Services" width="20" height="20"> Health Services</div>
+    <div><img src="https://i.imgur.com/O46XTPF.png" alt="Free Legal Services" width="20" height="20"> Free Legal Services</div>
+    <div><img src="https://i.imgur.com/ReMEUzA.png" alt="Open Work Permit Support" width="20" height="20"> Open Work Permit Support</div>
+    <div><img src="https://i.imgur.com/Euaxv7v.png" alt="Emergency Food Services" width="20" height="20"> Emergency Food Services</div>
+    <div><img src="https://i.imgur.com/IWLKb2x.png" alt="Emergency Shelter Services" width="20" height="20"> Emergency Shelter Services</div>
+    <div><img src="https://i.imgur.com/NsBSO5D.png" alt="Counseling Services" width="20" height="20"> Counseling Services</div>
+  </div>
+
+  <!-- Google Maps JavaScript API -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyChrxf8It3o8fAaaAQRI0zsBaEtoVtqt2I"
+    async
+    defer>
+  </script>
+
+  <!-- Google API Client Library -->
+  <script 
+    src="https://apis.google.com/js/api.js"
+    async
+    defer
+    onload="loadGoogleAPI()">
+  </script>
+
+  <!-- Custom Script -->
+  <script>
+    let map;
+    let geocoder;
+    let markers = []; // Array to hold markers
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 46.5653, lng: -66.4619 },
+        zoom: 7,
+      });
+
+      // Add legend to map
+      const legend = document.getElementById("legend");
+      map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
+
+      geocoder = new google.maps.Geocoder();
+      loadSheetsAPI();
+    }
+
+    function loadGoogleAPI() {
+      console.log("Google API (gapi) loaded successfully.");
+      if (typeof gapi !== "undefined") {
+        gapi.load("client", initMap);
+      } else {
+        console.error("Google API (gapi) not ready yet.");
+      }
+    }
+
+    function loadSheetsAPI() {
+      gapi.client
+        .init({
+          apiKey: "AIzaSyChrxf8It3o8fAaaAQRI0zsBaEtoVtqt2I",
+          discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"],
+        })
+        .then(() => {
+          return gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: "1ghAvyWpBIP7bkzC0lkEFynnjzkI3VrMLYCSmwssgNyk",
+            range: "Sheet1!A:G",
+          });
+        })
+        .then((response) => {
+          const rows = response.result.values;
+          if (rows && rows.length > 0) {
+            rows.forEach((row, index) => {
+              if (index === 0) return;
+              placeMarkerByAddress(...row);
+            });
+          } else {
+            console.warn("No data found in the spreadsheet.");
+          }
+        })
+        .catch((error) => {
+          console.error("Error loading sheet data:", error);
+        });
+    }
+
+    function placeMarkerByAddress(
+      category = "",
+      name = "",
+      address = "",
+      description = "",
+      website = "",
+      phone = "",
+      email = ""
+    ) {
+      if (!address) {
+        console.warn("Missing address for:", name);
+        return;
+      }
+
+      const categoryIcons = {
+        "Health Services": "https://i.imgur.com/i8IzUNM.png",
+        "Free Legal Services": "https://i.imgur.com/O46XTPF.png",
+        "Open Work Permit Support": "https://i.imgur.com/ReMEUzA.png",
+        "Emergency Food Services": "https://i.imgur.com/Euaxv7v.png",
+        "Emergency Shelter Services": "https://i.imgur.com/IWLKb2x.png",
+        "Counseling Services": "https://i.imgur.com/NsBSO5D.png",
+        default: "https://i.imgur.com/mmwqil5.png",
+      };
+
+      const baseIcon = categoryIcons[category] || categoryIcons.default;
+
+      geocoder.geocode({ address }, (results, status) => {
+        if (status === "OK") {
+          const location = results[0].geometry.location;
+
+          const marker = new google.maps.Marker({
+            map,
+            position: location,
+            title: name,
+            icon: {
+              url: baseIcon,
+              scaledSize: new google.maps.Size(30, 30), // Adjust size as needed
+            },
+          });
+
+          markers.push({ marker, category });
+
+          const infoWindow = new google.maps.InfoWindow({
+            content: `
+              <h3 style="margin:0; font-size:1.2em;">${name}</h3>
+              <strong>Category:</strong> ${category}<br>
+              <strong>Address:</strong> ${address}<br>
+              <strong>Description:</strong> ${description}<br>
+              <strong>Website:</strong> ${
+                website
+                  ? `<a href="${website}" target="_blank">${website}</a>`
+                  : ""
+              }<br>
+              <strong>Phone:</strong> ${phone}<br>
+              <strong>Email:</strong> ${
+                email ? `<a href="mailto:${email}">${email}</a>` : ""
+              }
+            `,
+          });
+
+          marker.addListener("click", () => {
+            infoWindow.open(map, marker);
+          });
+        } else {
+          console.error(`Geocode error for "${address}": ${status}`);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
